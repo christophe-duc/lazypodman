@@ -270,7 +270,10 @@ func (gui *Gui) renderContainerEnv(container *commands.Container) tasks.TaskFunc
 
 func (gui *Gui) containerEnv(container *commands.Container) string {
 	if !container.DetailsLoaded() {
-		return gui.Tr.WaitingForContainerInfo
+		_ = gui.PodmanCommand.RefreshSingleContainerDetails(container)
+		if !container.DetailsLoaded() {
+			return gui.Tr.WaitingForContainerInfo
+		}
 	}
 
 	if len(container.Details.Config.Env) == 0 {
@@ -305,7 +308,10 @@ func (gui *Gui) renderContainerConfig(container *commands.Container) tasks.TaskF
 
 func (gui *Gui) containerConfigStr(container *commands.Container) string {
 	if !container.DetailsLoaded() {
-		return gui.Tr.WaitingForContainerInfo
+		_ = gui.PodmanCommand.RefreshSingleContainerDetails(container)
+		if !container.DetailsLoaded() {
+			return gui.Tr.WaitingForContainerInfo
+		}
 	}
 
 	padding := 10
@@ -394,6 +400,12 @@ func (gui *Gui) renderPodStats(pod *commands.Pod) tasks.TaskFunc {
 
 func (gui *Gui) renderContainerTop(container *commands.Container) tasks.TaskFunc {
 	return gui.NewTickerTask(TickerTaskOpts{
+		Before: func(ctx context.Context) {
+			gui.clearMainView()
+			if !container.DetailsLoaded() {
+				_ = gui.PodmanCommand.RefreshSingleContainerDetails(container)
+			}
+		},
 		Func: func(ctx context.Context, notifyStopped chan struct{}) {
 			contents, err := container.RenderTop(ctx)
 			if err != nil {
@@ -403,7 +415,6 @@ func (gui *Gui) renderContainerTop(container *commands.Container) tasks.TaskFunc
 			gui.reRenderStringMain(contents)
 		},
 		Duration:   time.Second,
-		Before:     func(ctx context.Context) { gui.clearMainView() },
 		Wrap:       gui.Config.UserConfig.Gui.WrapMainPanel,
 		Autoscroll: false,
 	})
