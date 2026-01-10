@@ -48,7 +48,8 @@ builds:
       - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}} -X main.buildSource=snap
 
 archives:
-  - builds:
+  - id: default
+    builds:
       - darwin
       - linux
     name_template: >-
@@ -61,15 +62,23 @@ archives:
       {{- else if eq .Arch "386" }}x86
       {{- else }}{{ .Arch }}{{ end }}
       {{- if .Arm }}v{{ .Arm }}{{ end }}
-    format_overrides:
-      - goos: windows
-        format: zip
+    format: tar.gz
+    files:
+      - LICENSE
+      - README.md
+
+  - id: windows
+    builds:
+      - darwin
+      - linux
+    format: zip
+    rlcp: true
 
 checksum:
   name_template: "checksums.txt"
 
 snapshot:
-  name_template: "{{ .Tag }}-next"
+  version_template: "{{ .Tag }}-next"
 
 changelog:
   sort: asc
