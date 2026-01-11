@@ -293,18 +293,10 @@ func (gui *Gui) setPanels() {
 	}
 }
 
-func (gui *Gui) updateContainerDetails() error {
-	selectedItem, err := gui.Panels.Containers.GetSelectedItem()
-	if err != nil || selectedItem.IsPod || selectedItem.Container == nil {
-		return nil
-	}
-	return gui.PodmanCommand.RefreshSingleContainerDetails(selectedItem.Container)
-}
-
 func (gui *Gui) refreshContainerDetailsByID(containerID string) {
 	for _, item := range gui.Panels.Containers.List.GetAllItems() {
 		if !item.IsPod && item.Container != nil && item.Container.ID == containerID {
-			if err := gui.PodmanCommand.RefreshSingleContainerDetails(item.Container); err != nil {
+			if _, err := gui.PodmanCommand.RefreshSingleContainerDetails(item.Container); err != nil {
 				gui.Log.Error(err)
 			}
 			return
@@ -362,7 +354,7 @@ func (gui *Gui) listenForEvents(ctx context.Context, refresh func()) {
 			if event.Type != "" {
 				gui.Log.Infof("received event of type: %s, action: %s", event.Type, event.Action)
 
-				if event.Type == "container" || event.Type == "Container" {
+				if event.Type == "container" {
 					go gui.refreshContainerDetailsByID(event.Actor.ID)
 				}
 

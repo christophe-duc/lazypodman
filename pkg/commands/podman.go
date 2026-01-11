@@ -634,8 +634,8 @@ func (c *PodmanCommand) RefreshContainerDetails(containers []*Container) error {
 	return nil
 }
 
-// RefreshSingleContainerDetails fetches details for a single container only
-func (c *PodmanCommand) RefreshSingleContainerDetails(container *Container) error {
+// RefreshSingleContainerDetails fetches details for a single container only and returns them
+func (c *PodmanCommand) RefreshSingleContainerDetails(container *Container) (*ContainerDetails, error) {
 	c.ContainerMutex.Lock()
 	defer c.ContainerMutex.Unlock()
 
@@ -643,11 +643,11 @@ func (c *PodmanCommand) RefreshSingleContainerDetails(container *Container) erro
 	details, err := c.Runtime.InspectContainer(ctx, container.ID)
 	if err != nil {
 		c.Log.Error(err)
-		return err
+		return nil, err
 	}
 	container.Details = details
 
-	return nil
+	return details, nil
 }
 
 // SetContainerDetails attaches the details returned from container inspect to each of the containers
