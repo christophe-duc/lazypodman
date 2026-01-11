@@ -265,20 +265,34 @@ func (gui *Gui) renderPodConfig(pod *commands.Pod) tasks.TaskFunc {
 }
 
 func (gui *Gui) renderContainerEnv(container *commands.Container) tasks.TaskFunc {
-	return gui.NewSimpleRenderStringTask(func() string { return gui.containerEnv(container) })
+	return gui.NewTickerTask(TickerTaskOpts{
+		Before: func(ctx context.Context) {
+			gui.clearMainView()
+			if !container.DetailsLoaded() {
+				gui.RenderStringMain(gui.Tr.WaitingForContainerInfo)
+			}
+		},
+		Func: func(ctx context.Context, notifyStopped chan struct{}) {
+			var details *commands.ContainerDetails
+			if !container.DetailsLoaded() {
+				details, _ = gui.PodmanCommand.RefreshSingleContainerDetails(container)
+				if details == nil {
+					return // Keep showing waiting message
+				}
+			} else {
+				details = container.Details
+			}
+
+			content := gui.containerEnv(details)
+			gui.reRenderStringMain(content)
+		},
+		Duration:   time.Second,
+		Wrap:       gui.Config.UserConfig.Gui.WrapMainPanel,
+		Autoscroll: false,
+	})
 }
 
-func (gui *Gui) containerEnv(container *commands.Container) string {
-	var details *commands.ContainerDetails
-	if !container.DetailsLoaded() {
-		details, _ = gui.PodmanCommand.RefreshSingleContainerDetails(container)
-		if details == nil {
-			return gui.Tr.WaitingForContainerInfo
-		}
-	} else {
-		details = container.Details
-	}
-
+func (gui *Gui) containerEnv(details *commands.ContainerDetails) string {
 	if len(details.Config.Env) == 0 {
 		return gui.Tr.NothingToDisplay
 	}
@@ -306,20 +320,34 @@ func (gui *Gui) containerEnv(container *commands.Container) string {
 }
 
 func (gui *Gui) renderContainerConfig(container *commands.Container) tasks.TaskFunc {
-	return gui.NewSimpleRenderStringTask(func() string { return gui.containerConfigStr(container) })
+	return gui.NewTickerTask(TickerTaskOpts{
+		Before: func(ctx context.Context) {
+			gui.clearMainView()
+			if !container.DetailsLoaded() {
+				gui.RenderStringMain(gui.Tr.WaitingForContainerInfo)
+			}
+		},
+		Func: func(ctx context.Context, notifyStopped chan struct{}) {
+			var details *commands.ContainerDetails
+			if !container.DetailsLoaded() {
+				details, _ = gui.PodmanCommand.RefreshSingleContainerDetails(container)
+				if details == nil {
+					return // Keep showing waiting message
+				}
+			} else {
+				details = container.Details
+			}
+
+			content := gui.containerConfigStr(container, details)
+			gui.reRenderStringMain(content)
+		},
+		Duration:   time.Second,
+		Wrap:       gui.Config.UserConfig.Gui.WrapMainPanel,
+		Autoscroll: false,
+	})
 }
 
-func (gui *Gui) containerConfigStr(container *commands.Container) string {
-	var details *commands.ContainerDetails
-	if !container.DetailsLoaded() {
-		details, _ = gui.PodmanCommand.RefreshSingleContainerDetails(container)
-		if details == nil {
-			return gui.Tr.WaitingForContainerInfo
-		}
-	} else {
-		details = container.Details
-	}
-
+func (gui *Gui) containerConfigStr(container *commands.Container, details *commands.ContainerDetails) string {
 	padding := 10
 	output := ""
 	output += utils.WithPadding("ID: ", padding) + container.ID + "\n"
