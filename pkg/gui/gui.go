@@ -269,9 +269,8 @@ func (gui *Gui) Run() error {
 		throttledRefresh.Trigger()
 
 		gui.goEvery(time.Millisecond*30, gui.reRenderMain)
-		gui.goEvery(time.Millisecond*1000, gui.updateContainerDetails)
 		gui.goEvery(time.Millisecond*1000, gui.checkForContextChange)
-		// we need to regularly re-render these because their stats will be changed in the background
+		// we need to regularly re-render these because their stats will be changed in background
 		gui.goEvery(time.Millisecond*1000, gui.renderContainersAndServices)
 	}()
 
@@ -294,15 +293,15 @@ func (gui *Gui) setPanels() {
 	}
 }
 
-func (gui *Gui) updateContainerDetails() error {
-	// Extract containers from ContainerListItems
-	var containers []*commands.Container
+func (gui *Gui) refreshContainerDetailsByID(containerID string) {
 	for _, item := range gui.Panels.Containers.List.GetAllItems() {
-		if !item.IsPod && item.Container != nil {
-			containers = append(containers, item.Container)
+		if !item.IsPod && item.Container != nil && item.Container.ID == containerID {
+			if _, err := gui.PodmanCommand.RefreshSingleContainerDetails(item.Container); err != nil {
+				gui.Log.Error(err)
+			}
+			return
 		}
 	}
-	return gui.PodmanCommand.RefreshContainerDetails(containers)
 }
 
 func (gui *Gui) refresh() {
@@ -353,11 +352,13 @@ func (gui *Gui) listenForEvents(ctx context.Context, refresh func()) {
 			return
 		case event := <-eventChan:
 			if event.Type != "" {
-				// We could be more granular about what events should trigger which refreshes.
-				// At the moment it's pretty efficient though, and it might not be worth
-				// the maintenance burden of mapping specific events to specific refreshes
+				gui.Log.Infof("received event of type: %s, action: %s", event.Type, event.Action)
+
+				if event.Type == "container" {
+					go gui.refreshContainerDetailsByID(event.Actor.ID)
+				}
+
 				refresh()
-				gui.Log.Infof("received event of type: %s", event.Type)
 			}
 		case err := <-errChan:
 			if err != nil {

@@ -5,6 +5,7 @@ package commands
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/containers/podman/v5/libpod"
@@ -612,8 +613,8 @@ func (r *LibpodRuntime) Events(ctx context.Context) (<-chan Event, <-chan error)
 // convertLibpodEvent converts native libpod event to ContainerRuntime Event format.
 func convertLibpodEvent(e *events.Event) Event {
 	return Event{
-		Type:   string(e.Type),   // "Container", "Pod", "Image", "Volume", "Network"
-		Action: string(e.Status), // "start", "stop", "create", "remove", etc.
+		Type:   strings.ToLower(string(e.Type)), // "container", "pod", "image", "volume", "network"
+		Action: string(e.Status),                // "start", "stop", "create", "remove", etc.
 		Actor: EventActor{
 			ID:         e.ID,
 			Attributes: e.Attributes,

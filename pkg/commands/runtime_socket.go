@@ -541,7 +541,7 @@ func (r *SocketRuntime) Events(ctx context.Context) (<-chan Event, <-chan error)
 
 		for podmanEvent := range podmanEventChan {
 			event := Event{
-				Type:   string(podmanEvent.Type),
+				Type:   strings.ToLower(string(podmanEvent.Type)),
 				Action: string(podmanEvent.Action),
 				Actor: EventActor{
 					ID:         podmanEvent.Actor.ID,

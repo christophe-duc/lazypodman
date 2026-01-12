@@ -265,19 +265,39 @@ func (gui *Gui) renderPodConfig(pod *commands.Pod) tasks.TaskFunc {
 }
 
 func (gui *Gui) renderContainerEnv(container *commands.Container) tasks.TaskFunc {
-	return gui.NewSimpleRenderStringTask(func() string { return gui.containerEnv(container) })
+	return gui.NewTickerTask(TickerTaskOpts{
+		Before: func(ctx context.Context) {
+			gui.clearMainView()
+			if !container.DetailsLoaded() {
+				gui.RenderStringMain(gui.Tr.WaitingForContainerInfo)
+			}
+		},
+		Func: func(ctx context.Context, notifyStopped chan struct{}) {
+			var details *commands.ContainerDetails
+			if !container.DetailsLoaded() {
+				details, _ = gui.PodmanCommand.RefreshSingleContainerDetails(container)
+				if details == nil {
+					return // Keep showing waiting message
+				}
+			} else {
+				details = container.Details
+			}
+
+			content := gui.containerEnv(details)
+			gui.reRenderStringMain(content)
+		},
+		Duration:   time.Second,
+		Wrap:       gui.Config.UserConfig.Gui.WrapMainPanel,
+		Autoscroll: false,
+	})
 }
 
-func (gui *Gui) containerEnv(container *commands.Container) string {
-	if !container.DetailsLoaded() {
-		return gui.Tr.WaitingForContainerInfo
-	}
-
-	if len(container.Details.Config.Env) == 0 {
+func (gui *Gui) containerEnv(details *commands.ContainerDetails) string {
+	if details == nil || len(details.Config.Env) == 0 {
 		return gui.Tr.NothingToDisplay
 	}
 
-	envVarsList := lo.Map(container.Details.Config.Env, func(envVar string, _ int) []string {
+	envVarsList := lo.Map(details.Config.Env, func(envVar string, _ int) []string {
 		splitEnv := strings.SplitN(envVar, "=", 2)
 		key := splitEnv[0]
 		value := ""
@@ -300,27 +320,47 @@ func (gui *Gui) containerEnv(container *commands.Container) string {
 }
 
 func (gui *Gui) renderContainerConfig(container *commands.Container) tasks.TaskFunc {
-	return gui.NewSimpleRenderStringTask(func() string { return gui.containerConfigStr(container) })
+	return gui.NewTickerTask(TickerTaskOpts{
+		Before: func(ctx context.Context) {
+			gui.clearMainView()
+			if !container.DetailsLoaded() {
+				gui.RenderStringMain(gui.Tr.WaitingForContainerInfo)
+			}
+		},
+		Func: func(ctx context.Context, notifyStopped chan struct{}) {
+			var details *commands.ContainerDetails
+			if !container.DetailsLoaded() {
+				details, _ = gui.PodmanCommand.RefreshSingleContainerDetails(container)
+				if details == nil {
+					return // Keep showing waiting message
+				}
+			} else {
+				details = container.Details
+			}
+
+			content := gui.containerConfigStr(container, details)
+			gui.reRenderStringMain(content)
+		},
+		Duration:   time.Second,
+		Wrap:       gui.Config.UserConfig.Gui.WrapMainPanel,
+		Autoscroll: false,
+	})
 }
 
-func (gui *Gui) containerConfigStr(container *commands.Container) string {
-	if !container.DetailsLoaded() {
-		return gui.Tr.WaitingForContainerInfo
-	}
-
+func (gui *Gui) containerConfigStr(container *commands.Container, details *commands.ContainerDetails) string {
 	padding := 10
 	output := ""
 	output += utils.WithPadding("ID: ", padding) + container.ID + "\n"
 	output += utils.WithPadding("Name: ", padding) + container.Name + "\n"
-	output += utils.WithPadding("Image: ", padding) + container.Details.Config.Image + "\n"
-	output += utils.WithPadding("Command: ", padding) + strings.Join(append([]string{container.Details.Path}, container.Details.Args...), " ") + "\n"
-	output += utils.WithPadding("Labels: ", padding) + utils.FormatMap(padding, container.Details.Config.Labels)
+	output += utils.WithPadding("Image: ", padding) + details.Config.Image + "\n"
+	output += utils.WithPadding("Command: ", padding) + strings.Join(append([]string{details.Path}, details.Args...), " ") + "\n"
+	output += utils.WithPadding("Labels: ", padding) + utils.FormatMap(padding, details.Config.Labels)
 	output += "\n"
 
 	output += utils.WithPadding("Mounts: ", padding)
-	if len(container.Details.Mounts) > 0 {
+	if len(details.Mounts) > 0 {
 		output += "\n"
-		for _, mount := range container.Details.Mounts {
+		for _, mount := range details.Mounts {
 			if mount.Type == "volume" {
 				output += fmt.Sprintf("%s%s %s\n", strings.Repeat(" ", padding), utils.ColoredString(mount.Type+":", color.FgYellow), mount.Name)
 			} else {
@@ -332,9 +372,9 @@ func (gui *Gui) containerConfigStr(container *commands.Container) string {
 	}
 
 	output += utils.WithPadding("Ports: ", padding)
-	if len(container.Details.NetworkSettings.Ports) > 0 {
+	if len(details.NetworkSettings.Ports) > 0 {
 		output += "\n"
-		for k, v := range container.Details.NetworkSettings.Ports {
+		for k, v := range details.NetworkSettings.Ports {
 			for _, host := range v {
 				output += fmt.Sprintf("%s%s %s\n", strings.Repeat(" ", padding), utils.ColoredString(host.HostPort+":", color.FgYellow), k)
 			}
@@ -343,7 +383,7 @@ func (gui *Gui) containerConfigStr(container *commands.Container) string {
 		output += "none\n"
 	}
 
-	data, err := utils.MarshalIntoYaml(&container.Details)
+	data, err := utils.MarshalIntoYaml(&details)
 	if err != nil {
 		return fmt.Sprintf("Error marshalling container details: %v", err)
 	}
@@ -394,6 +434,12 @@ func (gui *Gui) renderPodStats(pod *commands.Pod) tasks.TaskFunc {
 
 func (gui *Gui) renderContainerTop(container *commands.Container) tasks.TaskFunc {
 	return gui.NewTickerTask(TickerTaskOpts{
+		Before: func(ctx context.Context) {
+			gui.clearMainView()
+			if !container.DetailsLoaded() {
+				_, _ = gui.PodmanCommand.RefreshSingleContainerDetails(container)
+			}
+		},
 		Func: func(ctx context.Context, notifyStopped chan struct{}) {
 			contents, err := container.RenderTop(ctx)
 			if err != nil {
@@ -403,7 +449,6 @@ func (gui *Gui) renderContainerTop(container *commands.Container) tasks.TaskFunc
 			gui.reRenderStringMain(contents)
 		},
 		Duration:   time.Second,
-		Before:     func(ctx context.Context) { gui.clearMainView() },
 		Wrap:       gui.Config.UserConfig.Gui.WrapMainPanel,
 		Autoscroll: false,
 	})
