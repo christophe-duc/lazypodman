@@ -293,7 +293,7 @@ func (gui *Gui) renderContainerEnv(container *commands.Container) tasks.TaskFunc
 }
 
 func (gui *Gui) containerEnv(details *commands.ContainerDetails) string {
-	if len(details.Config.Env) == 0 {
+	if details == nil || len(details.Config.Env) == 0 {
 		return gui.Tr.NothingToDisplay
 	}
 
